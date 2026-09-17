@@ -15,6 +15,7 @@ dependencies = [
     "langgraph>=0.4,<2",
     "opentelemetry-api>=1.29,<2",
     "opentelemetry-sdk>=1.29,<2",
+    "pgvector>=0.4,<1",
     "pydantic-settings>=2.7,<3",
     "redis>=5.2,<7",
     "sqlalchemy[asyncio]>=2.0,<3",
@@ -62,6 +63,9 @@ plugins = ["pydantic.mypy"]
 addopts = "-p no:cacheprovider --strict-markers --strict-config --cov=gopher_agent --cov-report=term-missing"
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = [
+    "db_integration: 需要本地 PostgreSQL/pgvector 的数据库集成测试",
+]
 filterwarnings = [
     "ignore:The anyio.abc.BlockingPortal alias is deprecated:DeprecationWarning:starlette.testclient",
 ]

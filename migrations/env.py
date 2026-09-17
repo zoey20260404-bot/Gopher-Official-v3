@@ -6,6 +6,7 @@ from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
+import gopher_agent.models  # noqa: F401 注册全部 ORM metadata
 from gopher_agent.core.config import get_settings
 from gopher_agent.core.database import Base
 
