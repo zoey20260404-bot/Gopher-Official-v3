@@ -87,6 +87,8 @@ def test_position_query_is_parameterized_and_bounded() -> None:
     assert query.normalized_page == 1
     assert query.normalized_page_size == 20
     assert "国考" in compiled.params.values()
+    assert "广东" in compiled.params.values()
+    assert "国家" in compiled.params.values()
     assert "%广州%" in compiled.params.values()
     assert "%税务%" in compiled.params.values()
     assert "国考" not in str(compiled)
@@ -112,3 +114,6 @@ async def test_position_repository_returns_page_and_total() -> None:
     assert total == 1
     session.scalar.assert_awaited_once()
     session.scalars.assert_awaited_once()
+    page_statement = session.scalars.await_args.args[0]
+    compiled = str(page_statement.compile(dialect=postgresql.dialect()))  # type: ignore[no-untyped-call]
+    assert "ORDER BY positions.year DESC, positions.id DESC" in compiled
