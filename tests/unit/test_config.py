@@ -13,6 +13,10 @@ def test_settings_has_safe_local_defaults() -> None:
     assert settings.app_debug is False
     assert settings.jwt_secret.get_secret_value() == ""
     assert settings.jwt_access_token_expire_minutes == 60
+    assert settings.agent_enabled is False
+    assert settings.llm_api_key.get_secret_value() == ""
+    assert settings.agent_max_iterations == 8
+    assert settings.checkpoint_ttl_minutes == 1440
 
 
 def test_settings_rejects_invalid_port() -> None:

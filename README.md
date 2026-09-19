@@ -52,6 +52,7 @@ tests/
 - `POST /auth/login`：登录并获取 JWT access token；
 - `GET /api/v1/profile`：读取 Bearer token 对应的当前用户档案；
 - `GET /api/v1/positions`：按考试、年份、地区和关键词分页查询岗位；
+- `POST /api/v1/chat`：通过 LangGraph、岗位工具和 SSE 提供多轮岗位咨询；
 - PostgreSQL/pgvector ORM、Alembic migration 与异步 Repository 基础。
 
 本地调用认证接口前，需要在 `.env` 中设置至少 32 字符的 `JWT_SECRET`，并执行：
@@ -60,5 +61,8 @@ tests/
 uv run alembic upgrade head
 ```
 
+启用 Agent Chat 前，还需要设置 `AGENT_ENABLED=true`、`LLM_MODEL`、`LLM_API_KEY`，按模型服务需要设置
+`LLM_BASE_URL`，并启动包含 Redis 8 的本地依赖。未启用或配置不完整时，其他 API 正常工作，Chat 返回 HTTP 503。
+
 各阶段需求及技术设计见 [`docs/feat001`](docs/feat001)、[`docs/feat002`](docs/feat002)、
-[`docs/feat003`](docs/feat003) 和 [`docs/feat004`](docs/feat004)。
+[`docs/feat003`](docs/feat003)、[`docs/feat004`](docs/feat004) 和 [`docs/feat005`](docs/feat005)。

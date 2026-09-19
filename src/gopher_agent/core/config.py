@@ -30,8 +30,13 @@ class Settings(BaseSettings):
     jwt_access_token_expire_minutes: int = Field(default=60, ge=1, le=10_080)
 
     llm_model: str = ""
-    llm_api_key: str = ""
+    llm_api_key: SecretStr = SecretStr("")
     llm_base_url: str = ""
+    llm_timeout_seconds: float = Field(default=60.0, gt=0, le=300)
+
+    agent_enabled: bool = False
+    agent_max_iterations: int = Field(default=8, ge=4, le=32)
+    checkpoint_ttl_minutes: int = Field(default=1440, ge=1, le=43_200)
 
 
 @lru_cache
