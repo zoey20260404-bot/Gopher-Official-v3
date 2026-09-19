@@ -3,7 +3,7 @@
 from typing import Protocol
 
 from gopher_agent.models.position import Position
-from gopher_agent.models.user import User
+from gopher_agent.models.user import User, UserProfile
 from gopher_agent.repositories.types import PositionQuery
 
 
@@ -20,6 +20,10 @@ class UserRepositoryProtocol(Protocol):
 
     async def get_by_username(self, username: str) -> User | None:
         """按唯一用户名获取用户。"""
+        ...
+
+    async def get_profile_by_user_id(self, user_id: int) -> UserProfile | None:
+        """获取用户唯一的权威档案。"""
         ...
 
 

@@ -3,7 +3,7 @@
 from fastapi import FastAPI
 
 from gopher_agent import __version__
-from gopher_agent.api.router import api_router
+from gopher_agent.api.router import api_router, root_router
 from gopher_agent.core.config import get_settings
 
 
@@ -15,6 +15,7 @@ def create_app() -> FastAPI:
         debug=settings.app_debug,
         version=__version__,
     )
+    application.include_router(root_router)
     application.include_router(api_router, prefix="/api/v1")
     return application
 

@@ -2,7 +2,7 @@
 
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -24,6 +24,10 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+asyncpg://gopher:gopher@localhost:5432/gopher_agent"
     redis_url: str = "redis://localhost:6379/0"
+
+    jwt_secret: SecretStr = SecretStr("")
+    jwt_algorithm: str = "HS256"
+    jwt_access_token_expire_minutes: int = Field(default=60, ge=1, le=10_080)
 
     llm_model: str = ""
     llm_api_key: str = ""

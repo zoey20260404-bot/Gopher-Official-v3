@@ -11,6 +11,8 @@ def test_settings_has_safe_local_defaults() -> None:
 
     assert settings.app_name == "Gopher Agent"
     assert settings.app_debug is False
+    assert settings.jwt_secret.get_secret_value() == ""
+    assert settings.jwt_access_token_expire_minutes == 60
 
 
 def test_settings_rejects_invalid_port() -> None:

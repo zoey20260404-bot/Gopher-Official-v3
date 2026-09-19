@@ -45,4 +45,19 @@ tests/
 └── unit/            # 隔离依赖的快速测试
 ```
 
-需求及技术设计见 [`docs/feat001`](docs/feat001)。
+## 当前能力
+
+- `GET /api/v1/health`：进程存活检查；
+- `POST /auth/register`：注册用户；
+- `POST /auth/login`：登录并获取 JWT access token；
+- `GET /api/v1/profile`：读取 Bearer token 对应的当前用户档案；
+- PostgreSQL/pgvector ORM、Alembic migration 与异步 Repository 基础。
+
+本地调用认证接口前，需要在 `.env` 中设置至少 32 字符的 `JWT_SECRET`，并执行：
+
+```powershell
+uv run alembic upgrade head
+```
+
+各阶段需求及技术设计见 [`docs/feat001`](docs/feat001)、[`docs/feat002`](docs/feat002) 和
+[`docs/feat003`](docs/feat003)。

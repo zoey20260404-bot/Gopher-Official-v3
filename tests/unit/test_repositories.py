@@ -2,7 +2,9 @@
 
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 from sqlalchemy.dialects import postgresql
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gopher_agent.models.position import Position
@@ -13,6 +15,7 @@ from gopher_agent.repositories.sqlalchemy.position import (
 )
 from gopher_agent.repositories.sqlalchemy.user import SqlAlchemyUserRepository
 from gopher_agent.repositories.types import PositionQuery
+from gopher_agent.services.exceptions import UsernameAlreadyExistsError
 
 
 async def test_user_repository_flushes_without_committing() -> None:
@@ -30,6 +33,15 @@ async def test_user_repository_flushes_without_committing() -> None:
     session.commit.assert_not_called()
 
 
+async def test_user_repository_translates_insert_conflict() -> None:
+    session = MagicMock(spec=AsyncSession)
+    session.flush = AsyncMock(side_effect=IntegrityError("insert", {}, Exception("duplicate")))
+    user = User(username="zoey", password_hash="test-value")  # noqa: S106
+
+    with pytest.raises(UsernameAlreadyExistsError):
+        await SqlAlchemyUserRepository(session).add(user)
+
+
 async def test_user_repository_queries_by_username() -> None:
     session = MagicMock(spec=AsyncSession)
     expected = User()
@@ -37,13 +49,26 @@ async def test_user_repository_queries_by_username() -> None:
     expected.password_hash = "test-value"  # noqa: S105 测试数据，不是可用凭据
     session.scalar = AsyncMock(return_value=expected)
 
-    result = await SqlAlchemyUserRepository(session).get_by_username("zoey")
+    result = await SqlAlchemyUserRepository(session).get_by_username("ZoEy")
 
     assert result is expected
     statement = session.scalar.await_args.args[0]
     compiled = statement.compile(dialect=postgresql.dialect())  # type: ignore[no-untyped-call]
-    assert "users.username" in str(compiled)
+    assert "lower(users.username)" in str(compiled)
     assert "zoey" in compiled.params.values()
+
+
+async def test_user_repository_queries_profile_by_user_id() -> None:
+    session = MagicMock(spec=AsyncSession)
+    session.scalar = AsyncMock(return_value=None)
+
+    result = await SqlAlchemyUserRepository(session).get_profile_by_user_id(42)
+
+    assert result is None
+    statement = session.scalar.await_args.args[0]
+    compiled = statement.compile(dialect=postgresql.dialect())  # type: ignore[no-untyped-call]
+    assert "user_profiles.user_id" in str(compiled)
+    assert 42 in compiled.params.values()
 
 
 def test_position_query_is_parameterized_and_bounded() -> None:

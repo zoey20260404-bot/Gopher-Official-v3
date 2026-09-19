@@ -16,6 +16,7 @@ from gopher_agent.models.user import User
 from gopher_agent.repositories.sqlalchemy.position import SqlAlchemyPositionRepository
 from gopher_agent.repositories.sqlalchemy.user import SqlAlchemyUserRepository
 from gopher_agent.repositories.types import PositionQuery
+from gopher_agent.services.exceptions import UsernameAlreadyExistsError
 
 TEST_PASSWORD_HASH = "integration-test-value"  # noqa: S105 测试值，不是可用凭据
 
@@ -46,7 +47,9 @@ async def exercise_repositories(database_url: str) -> None:
             session.add(position)
 
         async with session_factory() as session:
-            persisted_user = await SqlAlchemyUserRepository(session).get_by_username(username)
+            persisted_user = await SqlAlchemyUserRepository(session).get_by_username(
+                username.upper()
+            )
             positions, total = await SqlAlchemyPositionRepository(session).list(
                 PositionQuery(year=2026, province="广东", keyword="测试岗位")
             )
@@ -54,6 +57,12 @@ async def exercise_repositories(database_url: str) -> None:
             assert persisted_user.id == user.id
             assert total == 1
             assert positions[0].position_code == position_code
+
+        with pytest.raises(UsernameAlreadyExistsError):
+            async with session_factory() as session, session.begin():
+                await SqlAlchemyUserRepository(session).add(
+                    User(username=username.upper(), password_hash=TEST_PASSWORD_HASH)
+                )
 
         with pytest.raises(RuntimeError, match="触发回滚"):
             async with session_factory() as session, session.begin():
