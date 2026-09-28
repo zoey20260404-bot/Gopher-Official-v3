@@ -17,7 +17,7 @@ from gopher_agent.models.user import User
 from gopher_agent.repositories.sqlalchemy.position import SqlAlchemyPositionRepository
 from gopher_agent.repositories.sqlalchemy.profile import SqlAlchemyProfileRepository
 from gopher_agent.repositories.sqlalchemy.user import SqlAlchemyUserRepository
-from gopher_agent.repositories.types import PositionQuery
+from gopher_agent.repositories.types import PositionCandidateQuery, PositionQuery
 from gopher_agent.services.exceptions import UsernameAlreadyExistsError
 
 TEST_PASSWORD_HASH = "integration-test-value"  # noqa: S105 测试值，不是可用凭据
@@ -80,6 +80,10 @@ async def exercise_repositories(database_url: str) -> None:
             positions, total = await SqlAlchemyPositionRepository(session).list(
                 PositionQuery(year=2026, province="广东", keyword="测试岗位")
             )
+            match_repository = SqlAlchemyPositionRepository(session)
+            candidate_query = PositionCandidateQuery(year=2026, province="广东")
+            candidate_total = await match_repository.count_candidates(candidate_query)
+            candidates = await match_repository.list_candidates(candidate_query, limit=10)
             assert persisted_user is not None
             assert persisted_user.id == user.id
             persisted_profile = await SqlAlchemyUserRepository(session).get_profile_by_user_id(
@@ -89,6 +93,8 @@ async def exercise_repositories(database_url: str) -> None:
             assert persisted_profile.profile["major"] == "计算机科学与技术"
             assert total == 1
             assert positions[0].position_code == position_code
+            assert candidate_total == 1
+            assert candidates[0].position_code == position_code
 
         with pytest.raises(UsernameAlreadyExistsError):
             async with session_factory() as session, session.begin():

@@ -8,8 +8,9 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_core.runnables import Runnable
-from langchain_core.tools import BaseTool
+from langchain_core.tools import BaseTool, StructuredTool
 from langgraph.checkpoint.memory import InMemorySaver
+from pydantic import Field
 
 from gopher_agent.agents.graph import build_position_agent_graph
 from gopher_agent.agents.tools import build_position_tool
@@ -35,6 +36,7 @@ class ScriptedChatModel(BaseChatModel):
 
     responses: list[AIMessage]
     response_index: int = 0
+    bound_tool_names: list[str] = Field(default_factory=list)
 
     @property
     def _llm_type(self) -> str:
@@ -58,6 +60,7 @@ class ScriptedChatModel(BaseChatModel):
         tool_choice: str | None = None,
         **kwargs: Any,
     ) -> Runnable[LanguageModelInput, AIMessage]:
+        self.bound_tool_names = [item.name for item in tools if isinstance(item, BaseTool)]
         return self
 
 
@@ -81,11 +84,24 @@ def build_scripted_model() -> ScriptedChatModel:
     )
 
 
+def build_empty_match_tool() -> BaseTool:
+    """创建无需业务依赖的第二个白名单 tool。"""
+
+    async def match_positions() -> str:
+        return "{}"
+
+    return StructuredTool.from_function(
+        coroutine=match_positions,
+        name="match_positions",
+        description="测试岗位资格匹配",
+    )
+
+
 async def test_graph_executes_position_tool_and_returns_final_message() -> None:
     repository = EmptyPositionRepository()
     tool = build_position_tool(PositionQueryTool(PositionSearchService(repository)))
     model = build_scripted_model()
-    graph = build_position_agent_graph(model, tool, InMemorySaver())
+    graph = build_position_agent_graph(model, [tool, build_empty_match_tool()], InMemorySaver())
 
     result = await graph.ainvoke(
         {"messages": [("user", "查询广东岗位")]},
@@ -93,6 +109,7 @@ async def test_graph_executes_position_tool_and_returns_final_message() -> None:
     )
 
     assert repository.query == PositionQuery(province="广东", page_size=5)
+    assert model.bound_tool_names == ["query_positions", "match_positions"]
     assert any(isinstance(message, ToolMessage) for message in result["messages"])
     assert result["messages"][-1].content == "暂时没有找到符合条件的岗位。"
 
@@ -100,7 +117,7 @@ async def test_graph_executes_position_tool_and_returns_final_message() -> None:
 async def test_real_graph_stream_maps_to_chat_events() -> None:
     repository = EmptyPositionRepository()
     tool = build_position_tool(PositionQueryTool(PositionSearchService(repository)))
-    graph = build_position_agent_graph(build_scripted_model(), tool, InMemorySaver())
+    graph = build_position_agent_graph(build_scripted_model(), [tool], InMemorySaver())
     service = ChatService(cast(StreamingGraphProtocol, graph), max_iterations=8)
 
     events = [

@@ -7,7 +7,12 @@ from langchain_core.tools import BaseTool, StructuredTool
 from langgraph.config import get_stream_writer
 from pydantic import BaseModel, Field
 
-from gopher_agent.tools.positions import PositionQueryTool
+from gopher_agent.domain.matching import PositionMatchFilter
+from gopher_agent.services.exceptions import (
+    PositionCandidateLimitExceededError,
+    UserProfileNotConfirmedError,
+)
+from gopher_agent.tools.positions import PositionMatchTool, PositionQueryTool
 
 
 class PositionToolInput(BaseModel):
@@ -44,4 +49,60 @@ def build_position_tool(adapter: PositionQueryTool) -> BaseTool:
         name=PositionQueryTool.name,
         description=PositionQueryTool.description,
         args_schema=PositionToolInput,
+    )
+
+
+class PositionMatchToolInput(PositionToolInput):
+    """限制模型可以提交的岗位匹配参数，不允许传入身份或档案。"""
+
+    match_status: PositionMatchFilter = PositionMatchFilter.POTENTIAL
+
+
+def build_position_match_tool(adapter: PositionMatchTool) -> BaseTool:
+    """把资格匹配 adapter 包装为带输入 schema 和 stream event 的 LangChain tool。"""
+
+    async def match_positions(**arguments: object) -> str:
+        writer = get_stream_writer()
+        writer({"name": PositionMatchTool.name, "phase": "started"})
+        query = PositionMatchToolInput.model_validate(arguments)
+        try:
+            result = await adapter.invoke(**query.model_dump())
+        except UserProfileNotConfirmedError:
+            writer({"name": PositionMatchTool.name, "phase": "failed"})
+            return json.dumps(
+                {
+                    "error": {
+                        "code": "user_profile_not_confirmed",
+                        "message": "请先解析并确认用户档案",
+                    }
+                },
+                ensure_ascii=False,
+            )
+        except PositionCandidateLimitExceededError as error:
+            writer({"name": PositionMatchTool.name, "phase": "failed"})
+            return json.dumps(
+                {
+                    "error": {
+                        "code": "position_candidate_limit_exceeded",
+                        "message": "候选岗位过多, 请增加考试、年份或地区过滤条件",
+                        "candidate_count": error.candidate_count,
+                        "limit": error.limit,
+                    }
+                },
+                ensure_ascii=False,
+            )
+        writer(
+            {
+                "name": PositionMatchTool.name,
+                "phase": "completed",
+                "result_count": len(result.items),
+            }
+        )
+        return json.dumps(asdict(result), ensure_ascii=False)
+
+    return StructuredTool.from_function(
+        coroutine=match_positions,
+        name=PositionMatchTool.name,
+        description=PositionMatchTool.description,
+        args_schema=PositionMatchToolInput,
     )

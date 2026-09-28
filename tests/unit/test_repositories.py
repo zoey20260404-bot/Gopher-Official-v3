@@ -16,7 +16,7 @@ from gopher_agent.repositories.sqlalchemy.position import (
 )
 from gopher_agent.repositories.sqlalchemy.profile import SqlAlchemyProfileRepository
 from gopher_agent.repositories.sqlalchemy.user import SqlAlchemyUserRepository
-from gopher_agent.repositories.types import PositionQuery
+from gopher_agent.repositories.types import PositionCandidateQuery, PositionQuery
 from gopher_agent.services.exceptions import UsernameAlreadyExistsError
 
 
@@ -166,3 +166,26 @@ async def test_position_repository_returns_page_and_total() -> None:
     page_statement = session.scalars.await_args.args[0]
     compiled = str(page_statement.compile(dialect=postgresql.dialect()))  # type: ignore[no-untyped-call]
     assert "ORDER BY positions.year DESC, positions.id DESC" in compiled
+
+
+async def test_position_repository_counts_and_bounds_match_candidates() -> None:
+    session = MagicMock(spec=AsyncSession)
+    session.scalar = AsyncMock(return_value=3)
+    scalar_rows = MagicMock()
+    scalar_rows.all.return_value = []
+    session.scalars = AsyncMock(return_value=scalar_rows)
+    repository = SqlAlchemyPositionRepository(session)
+    query = PositionCandidateQuery(exam_type="国考", province="广东")
+
+    total = await repository.count_candidates(query)
+    candidates = await repository.list_candidates(query, limit=2)
+
+    assert total == 3
+    assert candidates == []
+    count_statement = session.scalar.await_args.args[0]
+    count_sql = str(count_statement.compile(dialect=postgresql.dialect()))  # type: ignore[no-untyped-call]
+    assert "count" in count_sql.lower()
+    candidate_statement = session.scalars.await_args.args[0]
+    compiled = candidate_statement.compile(dialect=postgresql.dialect())  # type: ignore[no-untyped-call]
+    assert "ORDER BY positions.year DESC, positions.id DESC" in str(compiled)
+    assert 3 in compiled.params.values()

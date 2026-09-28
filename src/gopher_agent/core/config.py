@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     agent_enabled: bool = False
     agent_max_iterations: int = Field(default=8, ge=4, le=32)
     checkpoint_ttl_minutes: int = Field(default=1440, ge=1, le=43_200)
+    position_match_candidate_limit: int = Field(default=2000, ge=100, le=10_000)
 
 
 @lru_cache

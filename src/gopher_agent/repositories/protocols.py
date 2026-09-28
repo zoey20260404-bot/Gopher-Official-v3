@@ -5,7 +5,7 @@ from typing import Protocol
 from gopher_agent.models.position import Position
 from gopher_agent.models.session import UserSession
 from gopher_agent.models.user import User, UserProfile
-from gopher_agent.repositories.types import PositionQuery
+from gopher_agent.repositories.types import PositionCandidateQuery, PositionQuery
 
 
 class UserRepositoryProtocol(Protocol):
@@ -33,6 +33,18 @@ class PositionRepositoryProtocol(Protocol):
 
     async def list(self, query: PositionQuery) -> tuple[list[Position], int]:
         """返回当前页岗位和过滤后的总数。"""
+        ...
+
+
+class PositionMatchRepositoryProtocol(Protocol):
+    """资格匹配所需的有界候选岗位数据访问契约。"""
+
+    async def count_candidates(self, query: PositionCandidateQuery) -> int:
+        """返回资格匹配粗筛后的候选岗位数。"""
+        ...
+
+    async def list_candidates(self, query: PositionCandidateQuery, *, limit: int) -> list[Position]:
+        """按稳定顺序返回有界候选集，并额外读取一条用于防御截断。"""
         ...
 
 

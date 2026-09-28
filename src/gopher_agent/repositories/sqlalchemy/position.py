@@ -1,13 +1,17 @@
 """岗位 Repository 的 SQLAlchemy 实现。"""
 
+import builtins
+
 from sqlalchemy import Select, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gopher_agent.models.position import Position
-from gopher_agent.repositories.types import PositionQuery
+from gopher_agent.repositories.types import PositionCandidateQuery, PositionQuery
 
 
-def build_position_statement(query: PositionQuery) -> Select[tuple[Position]]:
+def build_position_statement(
+    query: PositionQuery | PositionCandidateQuery,
+) -> Select[tuple[Position]]:
     """构建参数化岗位查询，便于独立验证过滤语义。"""
     statement = select(Position)
     if query.exam_type:
@@ -47,3 +51,22 @@ class SqlAlchemyPositionRepository:
         )
         rows = await self._session.scalars(page_statement)
         return list(rows.all()), int(total or 0)
+
+    async def count_candidates(self, query: PositionCandidateQuery) -> int:
+        """对粗筛条件计数，供 Service 在读取前执行上限保护。"""
+        filtered = build_position_statement(query)
+        statement = select(func.count()).select_from(filtered.order_by(None).subquery())
+        total = await self._session.scalar(statement)
+        return int(total or 0)
+
+    async def list_candidates(
+        self, query: PositionCandidateQuery, *, limit: int
+    ) -> builtins.list[Position]:
+        """读取至多 limit + 1 条候选，防止计数与读取之间的数据竞争造成截断。"""
+        statement = (
+            build_position_statement(query)
+            .order_by(Position.year.desc(), Position.id.desc())
+            .limit(limit + 1)
+        )
+        rows = await self._session.scalars(statement)
+        return list(rows.all())

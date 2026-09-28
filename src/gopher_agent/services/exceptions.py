@@ -23,3 +23,16 @@ class ProfileSessionNotFoundError(Exception):
 
 class ProfileSessionConflictError(Exception):
     """已完成的 session 被用于确认不同的档案内容。"""
+
+
+class UserProfileNotConfirmedError(Exception):
+    """当前用户尚未确认可用于岗位匹配的权威档案。"""
+
+
+class PositionCandidateLimitExceededError(Exception):
+    """岗位粗筛候选数超过确定性匹配的安全上限。"""
+
+    def __init__(self, candidate_count: int, limit: int) -> None:
+        self.candidate_count = candidate_count
+        self.limit = limit
+        super().__init__(f"候选岗位数 {candidate_count} 超过上限 {limit}")

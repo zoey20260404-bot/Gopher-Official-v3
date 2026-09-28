@@ -24,3 +24,24 @@ class PositionQuery:
     def normalized_page_size(self) -> int:
         """限制单页数量，避免无界查询。"""
         return self.page_size if 1 <= self.page_size <= 100 else 20
+
+    def to_candidate_query(self) -> "PositionCandidateQuery":
+        """移除 transport 分页，生成资格匹配使用的粗筛条件。"""
+        return PositionCandidateQuery(
+            exam_type=self.exam_type,
+            year=self.year,
+            province=self.province,
+            city=self.city,
+            keyword=self.keyword,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class PositionCandidateQuery:
+    """资格匹配前可安全下推到 SQL 的岗位粗筛条件。"""
+
+    exam_type: str | None = None
+    year: int | None = None
+    province: str | None = None
+    city: str | None = None
+    keyword: str | None = None

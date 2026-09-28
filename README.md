@@ -54,6 +54,7 @@ tests/
 - `POST /api/v1/parse`：通过自然语言或结构化输入创建待确认档案；
 - `POST /api/v1/parse/confirm`：确认档案草稿并更新当前用户权威档案；
 - `GET /api/v1/positions`：按考试、年份、地区和关键词分页查询岗位；
+- `GET /api/v1/positions/matches`：基于已确认档案返回可解释的三态岗位资格匹配；
 - `POST /api/v1/chat`：通过 LangGraph、岗位工具和 SSE 提供多轮岗位咨询；
 - PostgreSQL/pgvector ORM、Alembic migration 与异步 Repository 基础。
 
@@ -67,6 +68,9 @@ uv run alembic upgrade head
 服务需要设置 `LLM_BASE_URL`，并启动包含 Redis 8 的本地依赖。未启用或配置不完整时，结构化档案录入等其他 API
 正常工作，Chat 和自然语言解析返回 HTTP 503。
 
+岗位资格匹配默认最多评估 2000 个粗筛候选，可通过 `POSITION_MATCH_CANDIDATE_LIMIT` 在 100～10000 范围内调整。
+候选数超过上限时应增加考试、年份或地区过滤条件，不会静默截断匹配结果。
+
 各阶段需求及技术设计见 [`docs/feat001`](docs/feat001)、[`docs/feat002`](docs/feat002)、
 [`docs/feat003`](docs/feat003)、[`docs/feat004`](docs/feat004)、[`docs/feat005`](docs/feat005) 和
-[`docs/feat006`](docs/feat006)。
+[`docs/feat006`](docs/feat006) 和 [`docs/feat007`](docs/feat007)。

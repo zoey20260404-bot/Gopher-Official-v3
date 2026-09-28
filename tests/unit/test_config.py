@@ -17,8 +17,15 @@ def test_settings_has_safe_local_defaults() -> None:
     assert settings.llm_api_key.get_secret_value() == ""
     assert settings.agent_max_iterations == 8
     assert settings.checkpoint_ttl_minutes == 1440
+    assert settings.position_match_candidate_limit == 2000
 
 
 def test_settings_rejects_invalid_port() -> None:
     with pytest.raises(ValidationError):
         Settings(_env_file=None, app_port=70_000)
+
+
+@pytest.mark.parametrize("limit", [99, 10_001])
+def test_settings_rejects_unsafe_position_candidate_limit(limit: int) -> None:
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, position_match_candidate_limit=limit)

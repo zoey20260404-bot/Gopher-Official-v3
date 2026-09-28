@@ -4,7 +4,14 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from gopher_agent.domain.matching import (
+    PositionMatchFilter,
+    PositionMatchStatus,
+    ReasonValue,
+    RuleResult,
+)
 from gopher_agent.repositories.types import PositionQuery
+from gopher_agent.services.matching import PositionMatchQuery
 
 
 class PositionSearchParams(BaseModel):
@@ -67,6 +74,46 @@ class PositionListResponse(BaseModel):
     """岗位分页响应。"""
 
     items: list[PositionItemResponse]
+    total: int
+    page: int
+    page_size: int
+
+
+class PositionMatchParams(PositionSearchParams):
+    """岗位资格匹配 query parameters。"""
+
+    match_status: PositionMatchFilter = PositionMatchFilter.POTENTIAL
+
+    def to_match_query(self) -> PositionMatchQuery:
+        """转换为 transport 无关的匹配查询。"""
+        values = self.model_dump(exclude={"match_status"})
+        return PositionMatchQuery(**values, match_filter=self.match_status)
+
+
+class MatchReasonResponse(BaseModel):
+    """一项确定性资格判断依据。"""
+
+    field: str
+    result: RuleResult
+    code: str
+    message: str
+    profile_value: ReasonValue
+    requirement: ReasonValue
+
+
+class PositionMatchItemResponse(BaseModel):
+    """岗位及其三态资格结论。"""
+
+    position: PositionItemResponse
+    match_status: PositionMatchStatus
+    reasons: list[MatchReasonResponse]
+    missing_profile_fields: list[str]
+
+
+class PositionMatchListResponse(BaseModel):
+    """资格匹配后的正确分页响应。"""
+
+    items: list[PositionMatchItemResponse]
     total: int
     page: int
     page_size: int

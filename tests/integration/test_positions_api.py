@@ -11,11 +11,29 @@ from gopher_agent.api.dependencies.auth import (
     get_token_manager,
     get_user_repository,
 )
-from gopher_agent.api.dependencies.positions import get_position_search_service
+from gopher_agent.api.dependencies.positions import (
+    get_position_match_service,
+    get_position_search_service,
+)
 from gopher_agent.core.security import TokenManager
+from gopher_agent.domain.matching import (
+    MatchReason,
+    PositionMatchFilter,
+    PositionMatchStatus,
+    RuleResult,
+)
 from gopher_agent.main import create_app
 from gopher_agent.models.user import User, UserProfile
 from gopher_agent.repositories.types import PositionQuery
+from gopher_agent.services.exceptions import (
+    PositionCandidateLimitExceededError,
+    UserProfileNotConfirmedError,
+)
+from gopher_agent.services.matching import (
+    PositionMatchItem,
+    PositionMatchQuery,
+    PositionMatchResult,
+)
 from gopher_agent.services.positions import (
     PositionItem,
     PositionSearchResult,
@@ -72,6 +90,37 @@ class StubPositionSearchService(PositionSearchService):
         items = [] if self.empty else [build_item()]
         return PositionSearchResult(
             items=items, total=len(items), page=query.page, page_size=query.page_size
+        )
+
+
+class StubPositionMatchService:
+    """返回固定资格结果并记录可信 user ID。"""
+
+    def __init__(self, error: Exception | None = None) -> None:
+        self.error = error
+        self.call: tuple[int, PositionMatchQuery] | None = None
+
+    async def search(self, user_id: int, query: PositionMatchQuery) -> PositionMatchResult:
+        if self.error is not None:
+            raise self.error
+        self.call = (user_id, query)
+        item = PositionMatchItem(
+            position=build_item(),
+            match_status=PositionMatchStatus.UNCERTAIN,
+            reasons=(
+                MatchReason(
+                    field="major",
+                    result=RuleResult.UNKNOWN,
+                    code="major_category_mapping_unavailable",
+                    message="缺少可靠的专业大类映射",
+                    profile_value="计算机科学与技术",
+                    requirement="计算机类",
+                ),
+            ),
+            missing_profile_fields=(),
+        )
+        return PositionMatchResult(
+            items=[item], total=1, page=query.page, page_size=query.page_size
         )
 
 
@@ -155,3 +204,61 @@ def test_positions_openapi_exposes_query_response_and_bearer_security() -> None:
     item_properties = schema["components"]["schemas"]["PositionItemResponse"]["properties"]
     assert "source_url" not in item_properties
     assert "data_version" not in item_properties
+
+
+def test_position_matches_returns_three_state_reasons_and_trusted_user() -> None:
+    app = create_app()
+    service = StubPositionMatchService()
+    app.dependency_overrides[get_current_user] = build_user
+    app.dependency_overrides[get_position_match_service] = lambda: service
+
+    with TestClient(app) as client:
+        response = client.get(
+            "/api/v1/positions/matches",
+            params={"province": " 广东 ", "match_status": "uncertain", "page_size": 5},
+        )
+
+    assert response.status_code == 200
+    assert service.call == (
+        7,
+        PositionMatchQuery(
+            province="广东",
+            match_filter=PositionMatchFilter.UNCERTAIN,
+            page_size=5,
+        ),
+    )
+    body = response.json()
+    assert body["total"] == 1
+    assert body["items"][0]["match_status"] == "uncertain"
+    assert body["items"][0]["reasons"][0]["code"] == "major_category_mapping_unavailable"
+    assert "source_url" not in body["items"][0]["position"]
+
+
+def test_position_matches_maps_profile_and_candidate_limit_errors() -> None:
+    app = create_app()
+    app.dependency_overrides[get_current_user] = build_user
+    app.dependency_overrides[get_position_match_service] = lambda: StubPositionMatchService(
+        UserProfileNotConfirmedError()
+    )
+    with TestClient(app) as client:
+        missing = client.get("/api/v1/positions/matches")
+
+    app.dependency_overrides[get_position_match_service] = lambda: StubPositionMatchService(
+        PositionCandidateLimitExceededError(2500, 2000)
+    )
+    with TestClient(app) as client:
+        exceeded = client.get("/api/v1/positions/matches")
+        invalid = client.get("/api/v1/positions/matches", params={"match_status": "maybe"})
+
+    assert missing.status_code == 409
+    assert missing.json() == {"detail": "请先解析并确认用户档案"}
+    assert exceeded.status_code == 422
+    assert exceeded.json()["detail"]["candidate_count"] == 2500
+    assert invalid.status_code == 422
+
+
+def test_position_matches_openapi_exposes_filter_and_bearer_security() -> None:
+    operation = create_app().openapi()["paths"]["/api/v1/positions/matches"]["get"]
+
+    assert "match_status" in {parameter["name"] for parameter in operation["parameters"]}
+    assert operation["security"] == [{"HTTPBearer": []}]

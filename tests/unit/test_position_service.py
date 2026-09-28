@@ -1,9 +1,15 @@
 """岗位检索 Service 与 tool adapter 单元测试。"""
 
+from gopher_agent.domain.matching import PositionMatchFilter
 from gopher_agent.models.position import Position
 from gopher_agent.repositories.types import PositionQuery
+from gopher_agent.services.matching import (
+    PositionMatchQuery,
+    PositionMatchResult,
+    PositionMatchService,
+)
 from gopher_agent.services.positions import PositionSearchService
-from gopher_agent.tools.positions import PositionQueryTool
+from gopher_agent.tools.positions import PositionMatchTool, PositionQueryTool
 
 
 def build_position() -> Position:
@@ -76,3 +82,36 @@ async def test_position_tool_has_stable_name_and_reuses_service() -> None:
     assert tool.name == "query_positions"
     assert repository.query == PositionQuery(province="广东", keyword="税务", page_size=5)
     assert result.items[0].department == "税务局"
+
+
+class StubPositionMatchService(PositionMatchService):
+    """记录 tool 注入的可信用户身份。"""
+
+    def __init__(self) -> None:
+        self.call: tuple[int, PositionMatchQuery] | None = None
+
+    async def search(self, user_id: int, query: PositionMatchQuery) -> PositionMatchResult:
+        self.call = (user_id, query)
+        return PositionMatchResult(items=[], total=0, page=query.page, page_size=query.page_size)
+
+
+async def test_position_match_tool_injects_user_and_has_no_identity_argument() -> None:
+    service = StubPositionMatchService()
+    tool = PositionMatchTool(service, user_id=7)
+
+    result = await tool.invoke(
+        province="广东",
+        match_status=PositionMatchFilter.UNCERTAIN,
+        page_size=5,
+    )
+
+    assert tool.name == "match_positions"
+    assert service.call == (
+        7,
+        PositionMatchQuery(
+            province="广东",
+            match_filter=PositionMatchFilter.UNCERTAIN,
+            page_size=5,
+        ),
+    )
+    assert result.total == 0
