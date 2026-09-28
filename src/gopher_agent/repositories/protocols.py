@@ -3,6 +3,7 @@
 from typing import Protocol
 
 from gopher_agent.models.position import Position
+from gopher_agent.models.session import UserSession
 from gopher_agent.models.user import User, UserProfile
 from gopher_agent.repositories.types import PositionQuery
 
@@ -32,4 +33,22 @@ class PositionRepositoryProtocol(Protocol):
 
     async def list(self, query: PositionQuery) -> tuple[list[Position], int]:
         """返回当前页岗位和过滤后的总数。"""
+        ...
+
+
+class ProfileRepositoryProtocol(Protocol):
+    """档案解析 session 与权威档案的 transaction 内数据访问契约。"""
+
+    async def add_session(self, user_session: UserSession) -> UserSession:
+        """新增解析 session 并 flush。"""
+        ...
+
+    async def get_owned_session_for_update(
+        self, session_id: str, user_id: int
+    ) -> UserSession | None:
+        """加锁读取属于指定用户的解析 session。"""
+        ...
+
+    async def upsert_profile(self, user_id: int, profile: dict[str, object]) -> UserProfile:
+        """按 user_id 新增或更新唯一权威档案。"""
         ...

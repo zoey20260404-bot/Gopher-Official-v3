@@ -125,7 +125,7 @@ def test_login_returns_token_and_hides_failure_reason() -> None:
     assert failure.json() == {"detail": "用户名或密码错误"}
 
 
-def test_profile_uses_authenticated_user_and_returns_empty_default() -> None:
+def test_profile_uses_authenticated_user_and_returns_typed_empty_default() -> None:
     app = create_app()
     app.dependency_overrides[get_current_user] = build_user
     app.dependency_overrides[get_user_repository] = lambda: StubUserRepository()
@@ -134,7 +134,8 @@ def test_profile_uses_authenticated_user_and_returns_empty_default() -> None:
         response = client.get("/api/v1/profile")
 
     assert response.status_code == 200
-    assert response.json() == {"user_id": 7, "profile": {}}
+    assert response.json()["user_id"] == 7
+    assert set(response.json()["profile"].values()) == {None}
 
 
 def test_openapi_exposes_bearer_auth_without_password_hash_schema() -> None:

@@ -8,11 +8,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gopher_agent.models.position import Position
+from gopher_agent.models.session import UserSession
 from gopher_agent.models.user import User
 from gopher_agent.repositories.sqlalchemy.position import (
     SqlAlchemyPositionRepository,
     build_position_statement,
 )
+from gopher_agent.repositories.sqlalchemy.profile import SqlAlchemyProfileRepository
 from gopher_agent.repositories.sqlalchemy.user import SqlAlchemyUserRepository
 from gopher_agent.repositories.types import PositionQuery
 from gopher_agent.services.exceptions import UsernameAlreadyExistsError
@@ -69,6 +71,53 @@ async def test_user_repository_queries_profile_by_user_id() -> None:
     compiled = statement.compile(dialect=postgresql.dialect())  # type: ignore[no-untyped-call]
     assert "user_profiles.user_id" in str(compiled)
     assert 42 in compiled.params.values()
+
+
+async def test_profile_repository_adds_session_without_committing() -> None:
+    session = MagicMock(spec=AsyncSession)
+    session.flush = AsyncMock()
+    user_session = UserSession(
+        session_id="session-1",
+        user_id=7,
+        mode="advanced",
+        status="parsing",
+        profile_snapshot={},
+    )
+
+    result = await SqlAlchemyProfileRepository(session).add_session(user_session)
+
+    assert result is user_session
+    session.add.assert_called_once_with(user_session)
+    session.flush.assert_awaited_once_with()
+    session.commit.assert_not_called()
+
+
+async def test_profile_repository_locks_owned_session() -> None:
+    session = MagicMock(spec=AsyncSession)
+    session.scalar = AsyncMock(return_value=None)
+
+    result = await SqlAlchemyProfileRepository(session).get_owned_session_for_update("session-1", 7)
+
+    assert result is None
+    statement = session.scalar.await_args.args[0]
+    compiled = statement.compile(dialect=postgresql.dialect())  # type: ignore[no-untyped-call]
+    assert "FOR UPDATE" in str(compiled)
+    assert "session-1" in compiled.params.values()
+    assert 7 in compiled.params.values()
+
+
+async def test_profile_repository_uses_atomic_postgresql_upsert() -> None:
+    session = MagicMock(spec=AsyncSession)
+    session.scalar = AsyncMock(return_value=MagicMock())
+
+    await SqlAlchemyProfileRepository(session).upsert_profile(7, {"education": "本科"})
+
+    statement = session.scalar.await_args.args[0]
+    compiled = statement.compile(dialect=postgresql.dialect())  # type: ignore[no-untyped-call]
+    sql = str(compiled)
+    assert "ON CONFLICT (user_id) DO UPDATE" in sql
+    assert "RETURNING user_profiles" in sql
+    session.commit.assert_not_called()
 
 
 def test_position_query_is_parameterized_and_bounded() -> None:
