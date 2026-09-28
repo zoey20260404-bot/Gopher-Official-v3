@@ -3,6 +3,7 @@
 from typing import Protocol
 
 from gopher_agent.models.position import Position
+from gopher_agent.models.report import Report
 from gopher_agent.models.session import UserSession
 from gopher_agent.models.user import User, UserProfile
 from gopher_agent.repositories.types import PositionCandidateQuery, PositionQuery
@@ -67,4 +68,20 @@ class ProfileRepositoryProtocol(Protocol):
 
     async def upsert_profile(self, user_id: int, profile: dict[str, object]) -> UserProfile:
         """按 user_id 新增或更新唯一权威档案。"""
+        ...
+
+
+class ReportRepositoryProtocol(Protocol):
+    """选岗报告业务状态的数据访问契约。"""
+
+    async def add(self, report: Report) -> Report:
+        """新增报告并 flush。"""
+        ...
+
+    async def get_owned(self, report_id: str, user_id: int) -> Report | None:
+        """读取属于指定用户的报告。"""
+        ...
+
+    async def get_owned_for_update(self, report_id: str, user_id: int) -> Report | None:
+        """加锁读取属于指定用户的报告。"""
         ...

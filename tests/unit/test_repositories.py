@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gopher_agent.models.position import Position
+from gopher_agent.models.report import Report
 from gopher_agent.models.session import UserSession
 from gopher_agent.models.user import User
 from gopher_agent.repositories.sqlalchemy.position import (
@@ -15,6 +16,7 @@ from gopher_agent.repositories.sqlalchemy.position import (
     build_position_statement,
 )
 from gopher_agent.repositories.sqlalchemy.profile import SqlAlchemyProfileRepository
+from gopher_agent.repositories.sqlalchemy.report import SqlAlchemyReportRepository
 from gopher_agent.repositories.sqlalchemy.user import SqlAlchemyUserRepository
 from gopher_agent.repositories.types import PositionCandidateQuery, PositionQuery
 from gopher_agent.services.exceptions import UsernameAlreadyExistsError
@@ -131,6 +133,33 @@ async def test_profile_repository_uses_atomic_postgresql_upsert() -> None:
     assert "ON CONFLICT (user_id) DO UPDATE" in sql
     assert "RETURNING user_profiles" in sql
     session.commit.assert_not_called()
+
+
+async def test_report_repository_adds_and_locks_owned_report() -> None:
+    session = MagicMock(spec=AsyncSession)
+    session.flush = AsyncMock()
+    session.scalar = AsyncMock(return_value=None)
+    report = Report(
+        report_id="report-1",
+        user_id=7,
+        profile_snapshot={},
+        request_snapshot={},
+        result={},
+        status="processing",
+    )
+    repository = SqlAlchemyReportRepository(session)
+
+    added = await repository.add(report)
+    locked = await repository.get_owned_for_update("report-1", 7)
+
+    assert added is report
+    assert locked is None
+    session.add.assert_called_once_with(report)
+    session.flush.assert_awaited_once_with()
+    statement = session.scalar.await_args.args[0]
+    compiled = statement.compile(dialect=postgresql.dialect())  # type: ignore[no-untyped-call]
+    assert "FOR UPDATE" in str(compiled)
+    assert "report-1" in compiled.params.values()
 
 
 def test_position_query_is_parameterized_and_bounded() -> None:

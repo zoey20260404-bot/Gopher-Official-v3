@@ -24,7 +24,9 @@ EXPECTED_TABLES = {
 }
 
 
-async def inspect_database(database_url: str) -> tuple[set[str], set[str], bool]:
+async def inspect_database(
+    database_url: str,
+) -> tuple[set[str], set[str], set[str], bool]:
     """读取业务表和 vector extension 状态。"""
     engine = create_async_engine(database_url)
     try:
@@ -42,12 +44,42 @@ async def inspect_database(database_url: str) -> tuple[set[str], set[str], bool]
                     else set()
                 )
             )
+            report_columns = await connection.run_sync(
+                lambda sync_connection: (
+                    {column["name"] for column in inspect(sync_connection).get_columns("reports")}
+                    if "reports" in tables
+                    else set()
+                )
+            )
             vector_enabled = bool(
                 await connection.scalar(
                     text("SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector')")
                 )
             )
-            return tables, session_columns, vector_enabled
+            return tables, session_columns, report_columns, vector_enabled
+    finally:
+        await engine.dispose()
+
+
+async def seed_pending_report(database_url: str) -> None:
+    """写入新增状态，验证 downgrade 会先完成兼容归并。"""
+    engine = create_async_engine(database_url)
+    try:
+        async with engine.begin() as connection:
+            user_id = await connection.scalar(
+                text(
+                    "INSERT INTO users (username, password_hash) "
+                    "VALUES (:username, :password_hash) RETURNING id"
+                ),
+                {"username": "migration-report-user", "password_hash": "test-value"},
+            )
+            await connection.execute(
+                text(
+                    "INSERT INTO reports (report_id, user_id, status) "
+                    "VALUES (:report_id, :user_id, 'pending_approval')"
+                ),
+                {"report_id": "migration-report", "user_id": user_id},
+            )
     finally:
         await engine.dispose()
 
@@ -65,18 +97,23 @@ def test_migration_upgrade_downgrade_cycle(monkeypatch: pytest.MonkeyPatch) -> N
     alembic_config = Config(root / "alembic.ini")
 
     command.upgrade(alembic_config, "head")
-    tables, session_columns, vector_enabled = asyncio.run(inspect_database(database_url))
+    tables, session_columns, report_columns, vector_enabled = asyncio.run(
+        inspect_database(database_url)
+    )
     assert tables == EXPECTED_TABLES
     assert "interview_state" in session_columns
+    assert {"request_snapshot", "last_request_id"}.issubset(report_columns)
     assert vector_enabled is True
 
+    asyncio.run(seed_pending_report(database_url))
     command.downgrade(alembic_config, "base")
-    tables_after_downgrade, session_columns, vector_still_enabled = asyncio.run(
+    tables_after_downgrade, session_columns, report_columns, vector_still_enabled = asyncio.run(
         inspect_database(database_url)
     )
     # Alembic 会保留自身的版本表，以便后续再次 upgrade。
     assert tables_after_downgrade == {"alembic_version"}
     assert session_columns == set()
+    assert report_columns == set()
     assert vector_still_enabled is True
 
     # 测试结束时恢复到可开发状态。

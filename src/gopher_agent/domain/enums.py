@@ -22,7 +22,9 @@ class ReportStatus(StrEnum):
     """选岗报告生成状态。"""
 
     PROCESSING = "processing"
+    PENDING_APPROVAL = "pending_approval"
     COMPLETED = "completed"
+    REJECTED = "rejected"
     FAILED = "failed"
 
 

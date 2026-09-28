@@ -12,10 +12,12 @@ from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from gopher_agent.models.position import Position
+from gopher_agent.models.report import Report
 from gopher_agent.models.session import UserSession
 from gopher_agent.models.user import User
 from gopher_agent.repositories.sqlalchemy.position import SqlAlchemyPositionRepository
 from gopher_agent.repositories.sqlalchemy.profile import SqlAlchemyProfileRepository
+from gopher_agent.repositories.sqlalchemy.report import SqlAlchemyReportRepository
 from gopher_agent.repositories.sqlalchemy.user import SqlAlchemyUserRepository
 from gopher_agent.repositories.types import PositionCandidateQuery, PositionQuery
 from gopher_agent.services.exceptions import UsernameAlreadyExistsError
@@ -32,6 +34,7 @@ async def exercise_repositories(database_url: str) -> None:
     rolled_back_username = f"feat002-rollback-{suffix}"
     position_code = f"P-{suffix}"
     profile_session_id = str(uuid4())
+    report_id = str(uuid4())
 
     try:
         async with session_factory() as session, session.begin():
@@ -60,6 +63,16 @@ async def exercise_repositories(database_url: str) -> None:
             )
             profile_session.status = "confirming"
             profile_session.profile_snapshot = {"education": "本科"}
+            await SqlAlchemyReportRepository(session).add(
+                Report(
+                    report_id=report_id,
+                    user_id=user.id,
+                    profile_snapshot={"education": "本科"},
+                    request_snapshot={"province": "广东"},
+                    result={"proposal": {}},
+                    status="pending_approval",
+                )
+            )
 
         async with session_factory() as session, session.begin():
             profile_repository = SqlAlchemyProfileRepository(session)
@@ -72,6 +85,11 @@ async def exercise_repositories(database_url: str) -> None:
                 user.id,
                 {"education": "本科", "major": "计算机科学与技术"},
             )
+            report = await SqlAlchemyReportRepository(session).get_owned_for_update(
+                report_id, user.id
+            )
+            assert report is not None
+            report.status = "rejected"
 
         async with session_factory() as session:
             persisted_user = await SqlAlchemyUserRepository(session).get_by_username(
@@ -95,6 +113,12 @@ async def exercise_repositories(database_url: str) -> None:
             assert positions[0].position_code == position_code
             assert candidate_total == 1
             assert candidates[0].position_code == position_code
+            persisted_report = await SqlAlchemyReportRepository(session).get_owned(
+                report_id, user.id
+            )
+            assert persisted_report is not None
+            assert persisted_report.status == "rejected"
+            assert persisted_report.request_snapshot == {"province": "广东"}
 
         with pytest.raises(UsernameAlreadyExistsError):
             async with session_factory() as session, session.begin():

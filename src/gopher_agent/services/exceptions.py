@@ -40,3 +40,23 @@ class PositionCandidateLimitExceededError(Exception):
         self.candidate_count = candidate_count
         self.limit = limit
         super().__init__(f"候选岗位数 {candidate_count} 超过上限 {limit}")
+
+
+class ReportNotFoundError(Exception):
+    """当前用户不存在指定报告。"""
+
+
+class ReportConflictError(Exception):
+    """报告状态、审批请求或 graph 结果存在冲突。"""
+
+
+class ReportNoCandidatesError(Exception):
+    """当前过滤条件下没有可进入报告的候选岗位。"""
+
+
+class ReportGenerationError(Exception):
+    """报告 graph 或模型生成失败。"""
+
+
+class ReportWorkflowUnavailableError(Exception):
+    """报告 workflow 所需的模型或 checkpoint 资源不可用。"""

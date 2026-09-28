@@ -27,6 +27,7 @@ def test_all_business_tables_are_registered() -> None:
 def test_structured_fields_use_native_postgresql_types() -> None:
     assert isinstance(Base.metadata.tables["user_profiles"].c.profile.type, JSONB)
     assert isinstance(Base.metadata.tables["reports"].c.result.type, JSONB)
+    assert isinstance(Base.metadata.tables["reports"].c.request_snapshot.type, JSONB)
 
     embedding_type = Base.metadata.tables["memories"].c.embedding.type
     assert isinstance(embedding_type, Vector)

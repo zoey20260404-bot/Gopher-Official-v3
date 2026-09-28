@@ -11,12 +11,12 @@ from gopher_agent.models.base import BigIntPrimaryKeyMixin, TimestampMixin
 
 
 class Report(BigIntPrimaryKeyMixin, TimestampMixin):
-    """归属用户的冲稳保报告。"""
+    """归属用户且包含人工审批状态的选岗报告。"""
 
     __tablename__ = "reports"
     __table_args__ = (
         CheckConstraint(
-            "status IN ('processing', 'completed', 'failed')",
+            "status IN ('processing', 'pending_approval', 'completed', 'rejected', 'failed')",
             name="ck_reports_status",
         ),
         Index("ix_reports_user_created", "user_id", "created_at"),
@@ -29,8 +29,10 @@ class Report(BigIntPrimaryKeyMixin, TimestampMixin):
     )
     session_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     profile_snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    request_snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
     content: Mapped[str] = mapped_column(Text, default="", nullable=False)
     result: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    last_request_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     status: Mapped[str] = mapped_column(
         String(20), default=ReportStatus.PROCESSING.value, nullable=False
     )
