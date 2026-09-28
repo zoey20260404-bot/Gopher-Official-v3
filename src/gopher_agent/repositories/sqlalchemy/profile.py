@@ -33,6 +33,11 @@ class SqlAlchemyProfileRepository:
         )
         return cast("UserSession | None", await self._session.scalar(statement))
 
+    async def get_profile_by_user_id(self, user_id: int) -> UserProfile | None:
+        """读取用户当前的权威档案。"""
+        statement = select(UserProfile).where(UserProfile.user_id == user_id)
+        return cast("UserProfile | None", await self._session.scalar(statement))
+
     async def upsert_profile(self, user_id: int, profile: dict[str, object]) -> UserProfile:
         """使用 PostgreSQL 原子 upsert 消除并发首次确认竞争。"""
         statement = (

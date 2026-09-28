@@ -52,6 +52,10 @@ class FakeProfileRepository:
             return self.user_session
         return None
 
+    async def get_profile_by_user_id(self, user_id: int) -> UserProfile | None:
+        """ProfileService 当前不会读取权威档案。"""
+        return None
+
     async def upsert_profile(self, user_id: int, profile: dict[str, object]) -> UserProfile:
         self.upserted = (user_id, profile)
         return UserProfile(user_id=user_id, profile=profile)

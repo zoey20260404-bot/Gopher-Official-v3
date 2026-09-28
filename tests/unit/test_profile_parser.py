@@ -5,7 +5,13 @@ from typing import Any, cast
 import pytest
 from langchain_core.language_models.chat_models import BaseChatModel
 
-from gopher_agent.agents.parser import PARSER_SYSTEM_PROMPT, StructuredProfileParser
+from gopher_agent.agents.parser import (
+    INTERVIEW_PARSER_SYSTEM_PROMPT,
+    PARSER_SYSTEM_PROMPT,
+    StructuredProfileInterviewParser,
+    StructuredProfileParser,
+)
+from gopher_agent.domain.interview import InterviewAnswerExtraction, InterviewField
 from gopher_agent.domain.profile import ProfileData
 from gopher_agent.services.exceptions import ProfileParsingError
 
@@ -23,9 +29,9 @@ class FakeRunnable:
 class FakeStructuredModel:
     def __init__(self, result: object) -> None:
         self.runnable = FakeRunnable(result)
-        self.schema: type[ProfileData] | None = None
+        self.schema: type[object] | None = None
 
-    def with_structured_output(self, schema: type[ProfileData]) -> FakeRunnable:
+    def with_structured_output(self, schema: type[object]) -> FakeRunnable:
         self.schema = schema
         return self.runnable
 
@@ -49,3 +55,24 @@ async def test_parser_translates_invalid_structured_output() -> None:
 
     with pytest.raises(ProfileParsingError):
         await parser.parse("本科")
+
+
+async def test_interview_parser_scopes_prompt_to_current_field() -> None:
+    model = FakeStructuredModel({"understood": True, "value": 24})
+    parser = StructuredProfileInterviewParser(cast(BaseChatModel, cast(Any, model)))
+
+    result = await parser.parse_answer(InterviewField.AGE, "我今年24岁")
+
+    assert result == InterviewAnswerExtraction(understood=True, value=24)
+    assert model.schema is InterviewAnswerExtraction
+    messages = cast(list[Any], model.runnable.input)
+    assert messages[0].content == INTERVIEW_PARSER_SYSTEM_PROMPT
+    assert messages[1].content == "当前字段: age\n用户回答: 我今年24岁"
+
+
+async def test_interview_parser_translates_invalid_output() -> None:
+    model = FakeStructuredModel({"understood": "invalid", "value": []})
+    parser = StructuredProfileInterviewParser(cast(BaseChatModel, cast(Any, model)))
+
+    with pytest.raises(ProfileParsingError):
+        await parser.parse_answer(InterviewField.MAJOR, "计算机")

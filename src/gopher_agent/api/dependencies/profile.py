@@ -6,11 +6,12 @@ from typing import cast
 
 from fastapi import Request
 
-from gopher_agent.agents.parser import StructuredProfileParser
+from gopher_agent.agents.parser import StructuredProfileInterviewParser, StructuredProfileParser
 from gopher_agent.agents.runtime import AgentResources
 from gopher_agent.core.database import async_session_factory
 from gopher_agent.repositories.protocols import ProfileRepositoryProtocol
 from gopher_agent.repositories.sqlalchemy.profile import SqlAlchemyProfileRepository
+from gopher_agent.services.interview import ProfileInterviewService
 from gopher_agent.services.profile import ProfileService
 
 
@@ -29,3 +30,13 @@ def get_profile_service(request: Request) -> ProfileService:
         typed_resources = cast(AgentResources, resources)
         parser = StructuredProfileParser(typed_resources.model)
     return ProfileService(parser, open_profile_repository)
+
+
+def get_profile_interview_service(request: Request) -> ProfileInterviewService:
+    """组装可选单字段 Parser；开始和跳过访谈不依赖模型资源。"""
+    resources = getattr(request.app.state, "agent_resources", None)
+    parser = None
+    if resources is not None:
+        typed_resources = cast(AgentResources, resources)
+        parser = StructuredProfileInterviewParser(typed_resources.model)
+    return ProfileInterviewService(parser, open_profile_repository)

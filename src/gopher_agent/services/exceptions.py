@@ -25,6 +25,10 @@ class ProfileSessionConflictError(Exception):
     """已完成的 session 被用于确认不同的档案内容。"""
 
 
+class ProfileInterviewConflictError(Exception):
+    """档案访谈 session 状态或问题版本已经发生变化。"""
+
+
 class UserProfileNotConfirmedError(Exception):
     """当前用户尚未确认可用于岗位匹配的权威档案。"""
 

@@ -61,6 +61,10 @@ class ProfileRepositoryProtocol(Protocol):
         """加锁读取属于指定用户的解析 session。"""
         ...
 
+    async def get_profile_by_user_id(self, user_id: int) -> UserProfile | None:
+        """读取用户当前的权威档案，供新访谈初始化快照。"""
+        ...
+
     async def upsert_profile(self, user_id: int, profile: dict[str, object]) -> UserProfile:
         """按 user_id 新增或更新唯一权威档案。"""
         ...

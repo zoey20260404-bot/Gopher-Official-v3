@@ -106,6 +106,19 @@ async def test_profile_repository_locks_owned_session() -> None:
     assert 7 in compiled.params.values()
 
 
+async def test_profile_repository_queries_authoritative_profile() -> None:
+    session = MagicMock(spec=AsyncSession)
+    session.scalar = AsyncMock(return_value=None)
+
+    result = await SqlAlchemyProfileRepository(session).get_profile_by_user_id(7)
+
+    assert result is None
+    statement = session.scalar.await_args.args[0]
+    compiled = statement.compile(dialect=postgresql.dialect())  # type: ignore[no-untyped-call]
+    assert "user_profiles.user_id" in str(compiled)
+    assert 7 in compiled.params.values()
+
+
 async def test_profile_repository_uses_atomic_postgresql_upsert() -> None:
     session = MagicMock(spec=AsyncSession)
     session.scalar = AsyncMock(return_value=MagicMock())

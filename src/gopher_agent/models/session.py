@@ -36,3 +36,4 @@ class UserSession(BigIntPrimaryKeyMixin, TimestampMixin):
         String(20), default=SessionStatus.PARSING.value, nullable=False
     )
     profile_snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    interview_state: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)

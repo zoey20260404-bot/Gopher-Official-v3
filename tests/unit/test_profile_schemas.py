@@ -5,6 +5,7 @@ from pydantic import TypeAdapter, ValidationError
 
 from gopher_agent.api.schemas.profile import (
     AdvancedParseRequest,
+    AnswerProfileInterviewRequest,
     BeginnerParseRequest,
     ParseRequest,
 )
@@ -44,3 +45,21 @@ def test_parse_request_discriminates_modes_and_forbids_cross_mode_fields() -> No
         adapter.validate_python({"mode": "beginner", "content": "本科", "profile": {"age": 24}})
     with pytest.raises(ValidationError):
         adapter.validate_python({"mode": "beginner", "content": "   "})
+
+
+def test_interview_answer_requires_exactly_one_answer_mode() -> None:
+    identifiers = {
+        "session_id": "0199d418-9f9a-7000-8000-000000000001",
+        "question_id": "0199d418-9f9a-7000-8000-000000000002",
+        "request_id": "0199d418-9f9a-7000-8000-000000000003",
+    }
+
+    answered = AnswerProfileInterviewRequest(**identifiers, answer="  本科  ")
+    skipped = AnswerProfileInterviewRequest(**identifiers, skip=True)
+
+    assert answered.answer == "本科"
+    assert skipped.answer is None
+    with pytest.raises(ValidationError):
+        AnswerProfileInterviewRequest(**identifiers)
+    with pytest.raises(ValidationError):
+        AnswerProfileInterviewRequest(**identifiers, answer="本科", skip=True)
